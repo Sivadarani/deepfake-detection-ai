@@ -1,4 +1,6 @@
 dataset/
+app/uploads/
+app/database.db
+app/__pycache__/
 __pycache__/
 *.pyc
-uploads/
