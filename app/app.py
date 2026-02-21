@@ -8,56 +8,21 @@ from functools import wraps
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 
-# -------------------- APP SETUP --------------------
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "deepfake_secret_key_change_me")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# -------------------- UPLOAD FOLDER --------------------
+# Upload folder
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
-# -------------------- DATABASE --------------------
+# SQLite database
 DB_PATH = os.path.join(BASE_DIR, "database.db")
 
-def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS predictions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT,
-            filename TEXT NOT NULL,
-            result TEXT NOT NULL,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-
-    conn.commit()
-    conn.close()
-
-# IMPORTANT: Initialize DB at import time (for Render/Gunicorn)
-init_db()
-
-# -------------------- LOAD TFLITE MODEL --------------------
-TFLITE_MODEL_PATH = os.path.abspath(
-    os.path.join(BASE_DIR, "..", "model", "deepfake_model.tflite")
-)
-
-if not os.path.exists(TFLITE_MODEL_PATH):
-    raise FileNotFoundError(f"TFLite model not found at {TFLITE_MODEL_PATH}")
+# Load TFLite model using TensorFlow (NOT tflite-runtime)
+TFLITE_MODEL_PATH = os.path.join(BASE_DIR, "..", "model", "deepfake_model.tflite")
 
 interpreter = tf.lite.Interpreter(model_path=TFLITE_MODEL_PATH)
 interpreter.allocate_tensors()
@@ -77,7 +42,30 @@ def login_required(route_func):
         return route_func(*args, **kwargs)
     return wrapper
 
-# -------------------- USER FUNCTIONS --------------------
+# -------------------- DATABASE --------------------
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS predictions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT,
+            filename TEXT NOT NULL,
+            result TEXT NOT NULL,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.commit()
+    conn.close()
+
 def create_user(username, password):
     password_hash = generate_password_hash(password)
     conn = sqlite3.connect(DB_PATH)
@@ -124,12 +112,12 @@ def get_prediction_history(username):
     conn.close()
     return rows
 
-# -------------------- PREDICTION (TFLITE) --------------------
-def predict_image_tflite(image_path):
+# -------------------- PREDICTION --------------------
+def predict_image(image_path):
     img = cv2.imread(image_path)
     img = cv2.resize(img, (IMG_SIZE, IMG_SIZE))
-    img = img.astype(np.float32) / 255.0
-    img = np.expand_dims(img, axis=0)
+    img = img / 255.0
+    img = np.expand_dims(img, axis=0).astype(np.float32)
 
     interpreter.set_tensor(input_details[0]['index'], img)
     interpreter.invoke()
@@ -207,7 +195,7 @@ def upload():
             path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
             file.save(path)
 
-            fake_prob = predict_image_tflite(path)
+            fake_prob = predict_image(path)
             result = "FAKE" if fake_prob >= DEFAULT_FAKE_THRESHOLD else "REAL"
             confidence = fake_prob if result == "FAKE" else (1.0 - fake_prob)
 
@@ -223,4 +211,5 @@ def dashboard():
 
 # -------------------- MAIN --------------------
 if __name__ == "__main__":
+    init_db()
     app.run(debug=True)

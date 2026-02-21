@@ -1,6 +1,15 @@
+# Datasets and user data
 dataset/
 app/uploads/
 app/database.db
-app/__pycache__/
+
+# Python cache
 __pycache__/
+app/__pycache__/
 *.pyc
+
+# Virtual environments
+tf214/
+
+# Random files
+DEFAULT_FAKE_THRESHOLD
