@@ -3,7 +3,7 @@ import os
 import cv2
 import sqlite3
 import numpy as np
-import tflite_runtime.interpreter as tflite
+import tensorflow as tf
 from functools import wraps
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -59,7 +59,7 @@ TFLITE_MODEL_PATH = os.path.abspath(
 if not os.path.exists(TFLITE_MODEL_PATH):
     raise FileNotFoundError(f"TFLite model not found at {TFLITE_MODEL_PATH}")
 
-interpreter = tflite.Interpreter(model_path=TFLITE_MODEL_PATH)
+interpreter = tf.lite.Interpreter(model_path=TFLITE_MODEL_PATH)
 interpreter.allocate_tensors()
 
 input_details = interpreter.get_input_details()
