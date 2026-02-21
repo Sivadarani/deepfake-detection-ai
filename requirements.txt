@@ -1,6 +1,6 @@
 Flask
 gunicorn
-tflite-runtime==2.14.0
+tflite-runtime==2.16.2
 opencv-python-headless
 numpy<2
 werkzeug
