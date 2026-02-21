@@ -8,6 +8,7 @@ from functools import wraps
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 
+# -------------------- APP SETUP --------------------
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "deepfake_secret_key_change_me")
 
@@ -21,7 +22,7 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 # SQLite database
 DB_PATH = os.path.join(BASE_DIR, "database.db")
 
-# Load TFLite model (using TensorFlow's interpreter, NOT tflite-runtime)
+# -------------------- LOAD TFLITE MODEL --------------------
 TFLITE_MODEL_PATH = os.path.join(BASE_DIR, "..", "model", "deepfake_model.tflite")
 
 interpreter = tf.lite.Interpreter(model_path=TFLITE_MODEL_PATH)
@@ -46,6 +47,7 @@ def login_required(route_func):
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
+
     cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,6 +56,7 @@ def init_db():
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     """)
+
     cur.execute("""
         CREATE TABLE IF NOT EXISTS predictions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,6 +66,7 @@ def init_db():
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     """)
+
     conn.commit()
     conn.close()
 
@@ -71,7 +75,10 @@ def create_user(username, password):
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
     try:
-        cur.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)", (username, password_hash))
+        cur.execute(
+            "INSERT INTO users (username, password_hash) VALUES (?, ?)",
+            (username, password_hash),
+        )
         conn.commit()
         return True
     except sqlite3.IntegrityError:
@@ -102,12 +109,15 @@ def save_prediction(username, filename, result):
 def get_prediction_history(username):
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
-    cur.execute("""
+    cur.execute(
+        """
         SELECT id, filename, result, timestamp
         FROM predictions
         WHERE username = ?
         ORDER BY id DESC
-    """, (username,))
+        """,
+        (username,),
+    )
     rows = cur.fetchall()
     conn.close()
     return rows
@@ -208,7 +218,9 @@ def dashboard():
     history = get_prediction_history(session["user"])
     return render_template("dashboard.html", history=history)
 
-# -------------------- MAIN --------------------
+# -------------------- INIT DB ON STARTUP --------------------
+init_db()
+
+# -------------------- MAIN (LOCAL ONLY) --------------------
 if __name__ == "__main__":
-    init_db()
     app.run(debug=True)
