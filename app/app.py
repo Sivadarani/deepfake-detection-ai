@@ -21,7 +21,7 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 # SQLite database
 DB_PATH = os.path.join(BASE_DIR, "database.db")
 
-# Load TFLite model using TensorFlow (NOT tflite-runtime)
+# Load TFLite model (using TensorFlow's interpreter, NOT tflite-runtime)
 TFLITE_MODEL_PATH = os.path.join(BASE_DIR, "..", "model", "deepfake_model.tflite")
 
 interpreter = tf.lite.Interpreter(model_path=TFLITE_MODEL_PATH)
@@ -116,13 +116,12 @@ def get_prediction_history(username):
 def predict_image(image_path):
     img = cv2.imread(image_path)
     img = cv2.resize(img, (IMG_SIZE, IMG_SIZE))
-    img = img / 255.0
-    img = np.expand_dims(img, axis=0).astype(np.float32)
+    img = img.astype(np.float32) / 255.0
+    img = np.expand_dims(img, axis=0)
 
-    interpreter.set_tensor(input_details[0]['index'], img)
+    interpreter.set_tensor(input_details[0]["index"], img)
     interpreter.invoke()
-
-    output = interpreter.get_tensor(output_details[0]['index'])
+    output = interpreter.get_tensor(output_details[0]["index"])
 
     # If model outputs [real, fake]
     if output.shape[-1] >= 2:
